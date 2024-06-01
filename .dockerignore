@@ -1,0 +1,8 @@
+Dockerfile
+Dockerfile.servera
+docker-compose.yaml
+.dockerignore
+.gitignore
+.git
+README.md
+Makefile
