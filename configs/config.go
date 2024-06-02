@@ -13,6 +13,8 @@ type cfg struct {
 	ServerBPort   string
 	ServerBHost   string
 	ServerAPort   string
+	ServiceName   string
+	OtelEndpoint  string
 }
 
 func GetConfig() *cfg {
@@ -38,5 +40,7 @@ func GetConfig() *cfg {
 		ServerBPort:   viper.GetString("SERVER_B_PORT"),
 		ServerBHost:   viper.GetString("SERVER_B_HOST"),
 		ServerAPort:   viper.GetString("SERVER_A_PORT"),
+		ServiceName:   viper.GetString("SERVICE_NAME"),
+		OtelEndpoint:  viper.GetString("OTEL_ENDPOINT"),
 	}
 }

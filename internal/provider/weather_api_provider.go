@@ -7,8 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"otel/internal/constants"
 	"otel/internal/gateway"
-	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -36,13 +40,18 @@ func NewWeatherAPIProvider(weatherAPIKey, weatherAPIUrl string) *WeatherAPIProvi
 }
 
 func (w *WeatherAPIProvider) FetchTemperatureByCity(ctx context.Context, city string) (*gateway.TemperatureResponse, error) {
+	tracer := ctx.Value(constants.CtxTracerKey).(trace.Tracer)
+	ctx, span := tracer.Start(ctx, "weather_api_provider.FetchTemperatureByCity")
+	defer span.End()
+
 	url := fmt.Sprintf("%s?key=%s&q=%s&aqi=no", w.WeatherAPIUrl, w.WeatherAPIKey, url.QueryEscape(city))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("weather_api_provider.FetchTemperatureByCep: %w", err)
 	}
-	client := http.Client{Timeout: 3 * time.Second}
-	res, err := client.Do(req)
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("weather_api_provider.FetchTemperatureByCep: %w", err)
 	}

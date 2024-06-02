@@ -1,14 +1,19 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+	"otel/configs"
+	"otel/internal/constants"
 	"otel/internal/usecase"
 	"regexp"
 
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type TemperatureHandlerInput struct {
@@ -29,16 +34,27 @@ var (
 type TemperatureHandler struct {
 	getTemperatureFromCepUseCase     usecase.GetTemperatureFromCepUseCase
 	getTemperatureFromServerBUseCase *usecase.GetTemperatureFromServerBUseCase
+	serviceName                      string
 }
 
 func NewTemperatureHandler(getTemperatureFromCepUseCase usecase.GetTemperatureFromCepUseCase, getTemperatureFromServerBUseCase *usecase.GetTemperatureFromServerBUseCase) *TemperatureHandler {
+	config := configs.GetConfig()
 	return &TemperatureHandler{
 		getTemperatureFromCepUseCase:     getTemperatureFromCepUseCase,
 		getTemperatureFromServerBUseCase: getTemperatureFromServerBUseCase,
+		serviceName:                      config.ServiceName,
 	}
 }
 
 func (t *TemperatureHandler) GetTemperatureFromCep(w http.ResponseWriter, r *http.Request) {
+	tracer := otel.Tracer(t.serviceName)
+	ctx := context.WithValue(r.Context(), constants.CtxTracerKey, tracer)
+
+	carrier := propagation.HeaderCarrier(r.Header)
+	ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
+	ctx, span := tracer.Start(ctx, "GetTemperatureFromCep")
+	defer span.End()
+
 	w.Header().Add("Content-Type", "application/json")
 	cep := chi.URLParam(r, "cep")
 	if cep == "" || !isValidCep(cep) {
@@ -47,7 +63,7 @@ func (t *TemperatureHandler) GetTemperatureFromCep(w http.ResponseWriter, r *htt
 		http.Error(w, errString, http.StatusUnprocessableEntity)
 		return
 	}
-	response, err := t.getTemperatureFromCepUseCase.Execute(r.Context(), cep)
+	response, err := t.getTemperatureFromCepUseCase.Execute(ctx, cep)
 	if errors.Is(err, usecase.ErrNotFound) {
 		log.Printf("error: %s", err.Error())
 		http.Error(w, "can not find zipcode", http.StatusNotFound)
@@ -71,6 +87,14 @@ func (t *TemperatureHandler) GetTemperatureFromCep(w http.ResponseWriter, r *htt
 }
 
 func (t *TemperatureHandler) GetTemperatureFromServerB(w http.ResponseWriter, r *http.Request) {
+	tracer := otel.Tracer(t.serviceName)
+	ctx := context.WithValue(r.Context(), constants.CtxTracerKey, tracer)
+
+	carrier := propagation.HeaderCarrier(r.Header)
+	ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
+	ctx, span := tracer.Start(ctx, "GetTemperatureFromServerB")
+	defer span.End()
+
 	w.Header().Add("Content-Type", "application/json")
 	var input TemperatureHandlerInput
 	defer r.Body.Close()
@@ -86,7 +110,7 @@ func (t *TemperatureHandler) GetTemperatureFromServerB(w http.ResponseWriter, r 
 		http.Error(w, errString, http.StatusUnprocessableEntity)
 		return
 	}
-	response, err := t.getTemperatureFromServerBUseCase.Execute(r.Context(), input.Cep)
+	response, err := t.getTemperatureFromServerBUseCase.Execute(ctx, input.Cep)
 	if err != nil {
 		log.Printf("error: %s", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)

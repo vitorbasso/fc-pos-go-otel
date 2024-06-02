@@ -1,24 +1,6 @@
 version: "3"
 
 services:
-  jaeger-all-in-one:
-    image: jaegertracing/all-in-one:latest
-    restart: always
-    container_name: jaeger
-    ports:
-      - "16686:16686"
-      - "14268:14268"
-      - "14250:14250"
-
-  prometheus:
-    image: prom/prometheus:latest
-    restart: always
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./.docker/prometheus.yaml:/etc/prometheus/prometheus.yaml
-
   otel-collector:
     image: otel/opentelemetry-collector:latest
     restart: always
@@ -26,26 +8,29 @@ services:
     volumes:
       - ./.docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
-      - "8888:8888"
-      - "8889:8889"
       - "4317:4317"
 
-  grafana:
-    container_name: grafana
-    image: grafana/grafana:latest
+  zipkin:
+    container_name: zipkin
+    image: openzipkin/zipkin-slim:latest
     restart: always
-    ports:
-      - "3000:3000"
     depends_on:
-      - prometheus
+      - otel-collector
+    ports:
+      - "9411:9411"
 
   goserverb:
     build: .
     restart: always
+    depends_on:
+      - otel-collector
+      - zipkin
     ports:
       - "8081:8081"
     environment:
       - WEATHER_API_KEY=7111479bbb754a45bf014650240204
+      - SERVICE_NAME=server-b
+      - OTEL_ENDPOINT=otel-collector:4317
     volumes:
       - goapp-modules-cache:/go/pkg/mod
 
@@ -60,6 +45,8 @@ services:
       - "8080:8080"
     environment:
       - SERVERB_HOST=goserverb
+      - SERVICE_NAME=server-a
+      - OTEL_ENDPOINT=otel-collector:4317
     volumes:
       - goapp-modules-cache:/go/pkg/mod
 

@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"otel/internal/constants"
 	"otel/internal/gateway"
-	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -33,13 +37,17 @@ func NewServerBProvider(serverBHost, serverBPort string) *serverBProvider {
 }
 
 func (provider *serverBProvider) FetchTemperatureByCep(ctx context.Context, cep string) (*gateway.TemperatureByCepResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
+	tracer := ctx.Value(constants.CtxTracerKey).(trace.Tracer)
+	ctx, span := tracer.Start(ctx, "serverb_provider.FetchTemperatureByCep")
+	defer span.End()
+
 	url := fmt.Sprintf("http://%s:%s/temperatures/%s", provider.serverBHost, provider.serverBPort, cep)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("serverb_provider.GetTemperatureFromCep: %w", err)
 	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("serverb_provider.GetTemperatureFromCep: %w", err)

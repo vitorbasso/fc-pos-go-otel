@@ -7,8 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"otel/internal/constants"
 	"otel/internal/gateway"
-	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -41,14 +45,18 @@ func NewViaCepLocationProvider(viacepUrl string) *ViaCepLocationProvider {
 }
 
 func (v *ViaCepLocationProvider) FetchLocationByCep(ctx context.Context, cep string) (*gateway.LocationResponse, error) {
+	tracer := ctx.Value(constants.CtxTracerKey).(trace.Tracer)
+	ctx, span := tracer.Start(ctx, "viacep_provider.FetchLocationByCep")
+	defer span.End()
+
 	url := fmt.Sprintf("%s%s/json", v.viacepUrl, url.QueryEscape(cep))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("viacep_provider.FetchLocationByCep: %w", err)
 	}
-	client := http.Client{Timeout: 3 * time.Second}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 
-	res, err := client.Do(req)
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("viacep_provider.FetchLocationByCep: %w", err)
 	}

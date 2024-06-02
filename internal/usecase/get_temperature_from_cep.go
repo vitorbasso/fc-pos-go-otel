@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"otel/internal/constants"
 	"otel/internal/gateway"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -35,6 +38,10 @@ func NewGetTemperatureFromCepUseCase(locationProvider gateway.LocationGateway, t
 }
 
 func (g *getTemperatureFromCepUseCase) Execute(ctx context.Context, cep string) (*GetTemperatureFromCepResponse, error) {
+	tracer := ctx.Value(constants.CtxTracerKey).(trace.Tracer)
+	ctx, span := tracer.Start(ctx, "get_temperature_from_cep_use_case.Execute")
+	defer span.End()
+
 	location, err := g.locationProvider.FetchLocationByCep(ctx, cep)
 	if errors.Is(err, gateway.ErrCepNotFound) {
 		err = fmt.Errorf("%w; original: %w", ErrNotFound, err)
