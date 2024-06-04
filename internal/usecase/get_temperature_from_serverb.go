@@ -2,9 +2,11 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"otel/internal/constants"
 	"otel/internal/gateway"
+	"otel/internal/provider"
 
 	"go.opentelemetry.io/otel/trace"
 )
@@ -32,6 +34,9 @@ func (g *GetTemperatureFromServerBUseCase) Execute(ctx context.Context, cep stri
 	defer span.End()
 
 	temperature, err := g.temperatureFromCepGateway.FetchTemperatureByCep(ctx, cep)
+	if errors.Is(err, provider.ErrNotFound) {
+		return nil, fmt.Errorf("get_temperature_from_serverb_use_case.Execute: %w", ErrNotFound)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get_temperature_from_serverb_use_case.Execute: %w", err)
 	}

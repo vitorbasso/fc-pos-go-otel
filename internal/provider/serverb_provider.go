@@ -15,6 +15,7 @@ import (
 
 var (
 	ErrUnexpectedResponse = fmt.Errorf("unexpected response")
+	ErrNotFound           = fmt.Errorf("cep not found")
 )
 
 type serverBProvider struct {
@@ -51,6 +52,9 @@ func (provider *serverBProvider) FetchTemperatureByCep(ctx context.Context, cep 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("serverb_provider.GetTemperatureFromCep: %w", err)
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("serverb_provider.GetTemperatureFromCep: %w", ErrNotFound)
 	}
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("serverb_provider.GetTemperatureFromCep: %w; status code %d", ErrUnexpectedResponse, res.StatusCode)

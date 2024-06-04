@@ -111,6 +111,11 @@ func (t *TemperatureHandler) GetTemperatureFromServerB(w http.ResponseWriter, r 
 		return
 	}
 	response, err := t.getTemperatureFromServerBUseCase.Execute(ctx, input.Cep)
+	if errors.Is(err, usecase.ErrNotFound) {
+		log.Printf("error: %s", err.Error())
+		http.Error(w, "can not find zipcode", http.StatusNotFound)
+		return
+	}
 	if err != nil {
 		log.Printf("error: %s", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
